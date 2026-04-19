@@ -12,5 +12,8 @@ scikit-learn
 numpy
 pandas
 scipy
+# API Server (Team 19)
+fastapi
+uvicorn[standard]
 # Pytorch (Mặc định thường đã cài sẵn trong Colab)
 # torch>=2.0.0

@@ -165,6 +165,10 @@ class EncoderWrapper(torch.nn.Module):
     def main_input_name(self):
         return "input_ids"
 
+    @property
+    def embed_tokens(self):
+        return self.encoder.embed_tokens
+
     def forward(self, input_ids=None, attention_mask=None, **kwargs,):
         from transformers.modeling_outputs import BaseModelOutput
         # total_length = n_passages * passage_length

@@ -1,6 +1,6 @@
 # DocPrompting Modern Core Requirements (Tested 2026 for Python 3.11 & Colab)
 # Bỏ hết các thư viện thừa và các phiên bản bị ghim cứng từ năm 2021
-transformers==4.28.1
+transformers
 protobuf<4.0.0
 sacrebleu
 editdistance

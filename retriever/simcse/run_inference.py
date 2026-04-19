@@ -40,7 +40,7 @@ class CodeT5Retriever:
                 config=config,
                 model_type=self.model_name,
                 num_layers=args.num_layers,
-                tokenizer=tokenizer,
+                tokenizer=self.tokenizer,
                 training_args=None,
                 model_args=model_arg)
             self.device = torch.device('cuda') if not self.args.cpu else torch.device('cpu')

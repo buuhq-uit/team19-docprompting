@@ -192,7 +192,7 @@ class CheckpointWrapper(torch.nn.Module):
         self.module = module
         self.use_checkpoint = use_checkpoint
 
-    def forward(self, hidden_states, attention_mask, position_bias, **kwargs):
+    def forward(self, *args, **kwargs):
         if self.use_checkpoint and self.training:
             kwargs = {k: v for k, v in kwargs.items() if v is not None}
             def custom_forward(*inputs):
@@ -207,13 +207,11 @@ class CheckpointWrapper(torch.nn.Module):
 
             output = torch.utils.checkpoint.checkpoint(
                 custom_forward,
-                hidden_states,
-                attention_mask,
-                position_bias
+                *args
             )
             output = tuple(x if x.size() != 0 else None for x in output)
         else:
-            output = self.module(hidden_states, attention_mask, position_bias, **kwargs)
+            output = self.module(*args, **kwargs)
         return output
 
 def apply_checkpoint_wrapper(t5stack, use_checkpoint):

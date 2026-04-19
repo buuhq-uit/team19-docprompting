@@ -161,15 +161,22 @@ class EncoderWrapper(torch.nn.Module):
         self.encoder = encoder
         apply_checkpoint_wrapper(self.encoder, use_checkpoint)
 
+    @property
+    def main_input_name(self):
+        return "input_ids"
+
     def forward(self, input_ids=None, attention_mask=None, **kwargs,):
+        from transformers.modeling_outputs import BaseModelOutput
         # total_length = n_passages * passage_length
         bsz, total_length = input_ids.shape
         passage_length = total_length // self.n_passages
         input_ids = input_ids.view(bsz*self.n_passages, passage_length)
         attention_mask = attention_mask.view(bsz*self.n_passages, passage_length)
         outputs = self.encoder(input_ids, attention_mask, **kwargs)
-        outputs = (outputs[0].view(bsz, self.n_passages*passage_length, -1), ) + outputs[1:]
-        return outputs
+        
+        # Wrap the encoder output in a BaseModelOutput to be compatible with modern transformers pipeline
+        hidden_states = outputs[0].view(bsz, self.n_passages*passage_length, -1)
+        return BaseModelOutput(last_hidden_state=hidden_states)
 
 class CheckpointWrapper(torch.nn.Module):
     """

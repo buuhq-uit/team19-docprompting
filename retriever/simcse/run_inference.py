@@ -31,8 +31,8 @@ class CodeT5Retriever:
             try:
                 self.tokenizer = transformers.RobertaTokenizer.from_pretrained(self.model_name)
             except TypeError:
-                print("Warning: Tokenizer config in HF Hub is malformed for modern Transformers. Falling back to Salesforce/codet5-base tokenizer.")
-                self.tokenizer = transformers.RobertaTokenizer.from_pretrained("Salesforce/codet5-base")
+                print("Warning: Tokenizer config in HF Hub is malformed. Falling back to local models/generator/codet5-base tokenizer.")
+                self.tokenizer = transformers.RobertaTokenizer.from_pretrained("models/generator/codet5-base")
             model_arg = Dummy()
             setattr(model_arg, 'sim_func', args.sim_func)
             config = AutoConfig.from_pretrained(self.model_name)

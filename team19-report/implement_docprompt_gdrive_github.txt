@@ -1,0 +1,165 @@
+# %% [markdown]
+# # DocPrompting Pipeline (NLP Team 19 2026 Version)
+# Team 19 - UIT
+# **Repo:** https://github.com/buuhq-uit/team19-docprompting
+# 
+# 
+
+# %% [markdown]
+# ## 1. Clone Repo Github & Cài đặt Môi trường
+# Tải repo mà nhóm đã chuẩn hóa (sửa lỗi Dependency, Monkey Patching) và cài đặt các thư viện mới nhất.
+
+# %%
+%cd /content
+!rm -rf team19-docprompting
+
+# Clone repo đã được fork và fix lỗi thư viện
+# !git clone https://github.com/buuhq-uit/team19-docprompting.git
+!git clone -b pipeline --single-branch https://github.com/buuhq-uit/team19-docprompting.git
+
+
+# %%
+%cd /content/team19-docprompting
+!pip install -r requirements.txt
+
+# %% [markdown]
+# ## 2. Liên kết Dữ liệu (Symlink)
+# Liên kết 2 thư mục `data` và `models` từ Google Drive sang thư mục code để chạy siêu nhanh mà không cần tốn dung lượng copy.
+
+# %%
+# connect google drive để thấy thư mục docprompting_assets download sẵn data của tác giả
+# 2 file: docprompting_data.zip (129MB) và docprompting_generator_models.zip (5.7GB)
+# File Data (129MB): 👉 https://drive.google.com/file/d/1CzNlo8-e4XqrgAME5zHEWEKIQMPga0xl/view
+# File Model (5.7GB): 👉 https://drive.google.com/file/d/1NmPMxY1EOWkjM7S8VSKa13DKJmEZ3TqV/view
+from google.colab import drive
+drive.mount('/content/drive')
+
+# %%
+# Xóa thư mục rỗng mặc định của Github
+!rm -rf /content/team19-docprompting/data
+!rm -rf /content/team19-docprompting/models
+# Tạo link với Google Drive
+!ln -s /content/drive/MyDrive/docprompting_assets/data /content/team19-docprompting/data
+!ln -s /content/drive/MyDrive/docprompting_assets/models /content/team19-docprompting/models
+!ls -la /content/team19-docprompting/models/generator/codet5-base
+
+# %% [markdown]
+# ## 3. Dense Retriever
+
+# %%
+# Tìm kiếm Top 10 tài liệu mô tả API Python liên quan nhất cho từng câu hỏi
+!PYTHONPATH=/content/team19-docprompting python retriever/simcse/run_inference.py \
+  --model_name "neulab/docprompting-codet5-python-doc-retriever" \
+  --source_file data/conala/conala_nl.txt \
+  --target_file data/conala/python_manual_firstpara.tok.txt \
+  --source_embed_save_file data/conala/.tmp/src_embedding \
+  --target_embed_save_file data/conala/.tmp/tgt_embedding \
+  --sim_func cls_distance.cosine \
+  --num_layers 12 \
+  --save_file data/conala/retrieval_results.json
+
+# %% [markdown]
+# ## 4. Chạy FiD Code Generator
+# Không cần bọc (Monkey patch) mã nguồn như phiên bản cũ vì repo Github đã được sửa tận gốc. Batch size được thiết lập ở mức an toàn (2) cho GPU T4.
+
+# %%
+!PYTHONPATH=/content/team19-docprompting python generator/fid/test_reader_simple.py \
+    --model_path models/generator/conala.fid.codet5.top10/checkpoint/best_dev/best_dev \
+    --tokenizer_name models/generator/codet5-base \
+    --eval_data data/conala/fid.cmd_test.codet5.t10.json \
+    --per_gpu_batch_size 2 \
+    --n_context 10 \
+    --name conala.fid.codet5.top10 \
+    --checkpoint_dir models/generator \
+    --result_tag test_same \
+    --main_port 81692
+
+# %% [markdown]
+# ## 5. Xem Kết Quả Sinh Code
+
+# %%
+import json
+import os
+
+eval_data_path = '/content/team19-docprompting/data/conala/fid.cmd_test.codet5.t10.json'
+id_to_question = {}
+if os.path.exists(eval_data_path):
+    with open(eval_data_path, 'r', encoding='utf-8') as f:
+        eval_data = json.load(f)
+        id_to_question = {item['id']: item['question'] for item in eval_data}
+
+result_path = "/content/team19-docprompting/models/generator/conala.fid.codet5.top10/test_results_test_same.json"
+if os.path.exists(result_path):
+    data = []
+    with open(result_path, 'r', encoding='utf-8') as f:
+        for line in f:
+            if line.strip():
+                data.append(json.loads(line))
+
+    print("Hiển thị 5 kết quả Code đầu tiên:\n")
+    for item in data[:5]:
+        q_id = item.get('question_id')
+        print("--- Ý định NL (Intent):", id_to_question.get(q_id, "Không rõ"))
+        print("--- Code Đáp án (Gold):", item.get('gold'))
+        print("+++ Code AI (Generated):", item.get('clean_code'))
+        print("-" * 60)
+else:
+    print("File kết quả chưa được tạo ra.")
+
+# %% [markdown]
+# ## 6. piple line
+
+# %%
+# ──── Block 6: Load Pipeline & Chạy nhiều lần ────
+%cd /content/team19-docprompting
+
+
+# %%
+# 6.1: Chạy riêng Retriever
+!PYTHONPATH=/content/team19-docprompting python team19_retriever.py --top_k 10
+
+
+# %%
+# 6.2: Chạy riêng Generator với file JSON sẵn có
+!PYTHONPATH=/content/team19-docprompting python team19_generator.py \
+    --eval_data data/conala/fid.cmd_test.codet5.t10.json \
+    --per_gpu_batch_size 2
+
+
+# %%
+# 6.3: Chạy Full Pipeline (end-to-end)
+!PYTHONPATH=/content/team19-docprompting python team19_generator_pipeline.py \
+    --top_k 10 --n_context 10 --per_gpu_batch_size 2
+
+# %% [markdown]
+# 7. res api run
+
+# %%
+# Cài thêm
+!pip install fastapi uvicorn[standard] pyngrok --quiet
+# ngrok.set_auth_token("3CeikPvS2u9aaD4iKjOsIkb2aE2_58toW1WpZaeZUPaA1tEBV")  # Lấy ở https://dashboard.ngrok.com
+# Nếu ngrok yêu cầu auth token (miễn phí), thêm dòng này trước ngrok.connect
+# ngrok.set_auth_token("YOUR_TOKEN")  # Lấy ở https://dashboard.ngrok.com
+
+# %%
+# ──── Start API + Swagger UI trên Colab ────
+import os, subprocess, time
+
+# Start server ở background
+proc = subprocess.Popen(
+    ["python", "team19_generator_pipeline_api.py", "--port", "8000"],
+    env={**os.environ, "PYTHONPATH": "/content/team19-docprompting"},
+    cwd="/content/team19-docprompting",
+)
+
+# Đợi model load xong (khoảng 30-60s)
+print("⏳ Đang load models, đợi khoảng 60s...")
+time.sleep(60)
+
+# Tạo tunnel với ngrok
+from pyngrok import ngrok
+public_url = ngrok.connect(8000)
+print(f"\n✅ Swagger UI: {public_url}/docs")
+print(f"✅ API Base:   {public_url}")
+
+
